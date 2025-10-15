@@ -224,18 +224,107 @@ function lawStatus(states){
 
 // ------- NEW: Market pay estimator -------
 const ROLE_TABLE = [
-  // family, level, detect regex, baseline national range (USD base)
-  {family:"Research Assistant", level:"I", re:/\b(research\s+assistant)\b/i, low:50000, high:70000},
-  {family:"Research Associate", level:"I", re:/\b(research\s+associate\s*(?:i|1))\b/i, low:65000, high:85000},
-  {family:"Research Associate", level:"II", re:/\b(research\s+associate\s*(?:ii|2))\b/i, low:85000, high:105000},
-  {family:"Research Associate", level:"III|Sr", re:/\b(senior\s+research\s+associate|research\s+associate\s*(?:iii|3))\b/i, low:100000, high:125000},
-  {family:"Scientist", level:"I", re:/\b(scientist\s*(?:i|1))\b/i, low:110000, high:140000},
-  {family:"Scientist", level:"II", re:/\b(scientist\s*(?:ii|2))\b/i, low:130000, high:165000},
-  {family:"Senior Scientist", level:"—", re:/\b(senior\s+scientist)\b/i, low:150000, high:190000},
-  {family:"Lab Manager", level:"—", re:/\b(lab\s+manager|laboratory\s+manager)\b/i, low:90000, high:120000},
-  {family:"QC Analyst", level:"—", re:/\b(qc|quality\s+control).*(analyst|associate)|quality\s+analyst/i, low:60000, high:85000},
-  {family:"Data Scientist (Bio)", level:"—", re:/\b(data\s+scientist|ml\s+scientist|computational\s+biologist)\b/i, low:130000, high:180000},
-];
+  // ---- Wet Lab / R&D ----
+  {family:"Research Assistant", level:"I",   re:/\b(research\s+assistant\s*(?:i|1)?|lab\s+assistant)\b/i, low:50000,  high:70000},
+  {family:"Research Assistant", level:"II",  re:/\b(research\s+assistant\s*(?:ii|2))\b/i,                low:60000,  high:80000},
+  {family:"Research Associate", level:"I",   re:/\b(research\s+associate\s*(?:i|1)?|ra\s*i)\b/i,         low:65000,  high:85000},
+  {family:"Research Associate", level:"II",  re:/\b(research\s+associate\s*(?:ii|2)|ra\s*ii)\b/i,        low:85000,  high:105000},
+  {family:"Research Associate", level:"III", re:/\b(research\s+associate\s*(?:iii|3)|senior\s+research\s+associate)\b/i, low:100000, high:125000},
+  {family:"Scientist",          level:"I",   re:/\b(scientist\s*(?:i|1)|associate\s+scientist)\b/i,      low:110000, high:140000},
+  {family:"Scientist",          level:"II",  re:/\b(scientist\s*(?:ii|2))\b/i,                           low:130000, high:165000},
+  {family:"Senior Scientist",   level:"—",   re:/\b(senior\s+scientist|sr\.\s*scientist)\b/i,            low:150000, high:190000},
+  {family:"Principal Scientist",level:"—",   re:/\b(principal\s+scientist|staff\s+scientist)\b/i,        low:175000, high:220000},
+  {family:"Lab Technician",     level:"—",   re:/\b(lab(?:oratory)?\s+technician|lab\s+tech)\b/i,        low:48000,  high:65000},
+  {family:"Lab Manager",        level:"—",   re:/\b(lab(?:oratory)?\s+manager|lab\s+operations\s+manager)\b/i, low:90000,  high:120000},
+  {family:"Molecular Biologist",level:"—",   re:/\b(molecular\s+biolog(ist|y))\b/i,                      low:110000, high:150000},
+  {family:"Cell Biologist",     level:"—",   re:/\b(cell\s+biolog(ist|y))\b/i,                           low:110000, high:150000},
+  {family:"Immunologist",       level:"—",   re:/\b(immunolog(ist|y))\b/i,                               low:120000, high:170000},
+  {family:"Protein Scientist",  level:"—",   re:/\b(protein\s+(chemist|scientist)|protein\s+engineer)\b/i, low:120000, high:170000},
+  {family:"Analytical Scientist",level:"—",  re:/\b(analytical\s+scientist|bioanalytical)\b/i,           low:120000, high:170000},
+  {family:"Process Development Scientist", level:"—", re:/\b(process\s+development|downstream|upstream)\s+(scientist|engineer)\b/i, low:125000, high:180000},
+  {family:"Formulation Scientist", level:"—",re:/\b(formulation\s+scientist)\b/i,                        low:115000, high:165000},
+  {family:"Automation Engineer (Lab)", level:"—", re:/\b(lab\s+automation|liquid\s+handling|hamilton|tecan)\b/i, low:115000, high:160000},
+
+  // ---- Manufacturing / MSAT / CMC ----
+  {family:"Manufacturing Associate", level:"I",  re:/\b(manufacturing\s+associate\s*(?:i|1)|bioprocess\s+associate\s*(?:i|1))\b/i, low:60000,  high:80000},
+  {family:"Manufacturing Associate", level:"II", re:/\b(manufacturing\s+associate\s*(?:ii|2)|bioprocess\s+associate\s*(?:ii|2))\b/i, low:70000, high:90000},
+  {family:"Senior Manufacturing Associate", level:"—", re:/\b(senior\s+manufacturing\s+associate)\b/i,   low:85000,  high:105000},
+  {family:"Manufacturing Technician", level:"—", re:/\b(manufacturing\s+technician|upstream\s+tech|downstream\s+tech)\b/i, low:55000, high:75000},
+  {family:"MSAT Scientist/Engineer", level:"—",  re:/\b(msat|manufacturing\s+science\s+and\s+technology)\b/i, low:115000, high:160000},
+  {family:"Process Engineer",        level:"—",  re:/\b(process\s+engineer|bioprocess\s+engineer)\b/i,   low:110000, high:150000},
+  {family:"CMC Project Manager",     level:"—",  re:/\b(cmc\s+(project|program)\s+manager)\b/i,          low:135000, high:180000},
+
+  // ---- Quality: QC / QA / Validation ----
+  {family:"QC Analyst",   level:"I/II", re:/\b(qc|quality\s+control).*(analyst|associate)\b/i,           low:60000,  high:90000},
+  {family:"Senior QC Analyst", level:"—", re:/\b(senior\s+qc\s+analyst|sr\.\s+qc)\b/i,                   low:90000,  high:110000},
+  {family:"QC Microbiologist", level:"—", re:/\b(qc\s+micro|microbiolog(ist|y))\b/i,                     low:65000,  high:95000},
+  {family:"QA Specialist",     level:"I/II", re:/\b(qa|quality\s+assurance).*(specialist|associate)\b/i, low:75000,  high:105000},
+  {family:"Senior QA Specialist", level:"—", re:/\b(senior\s+qa\s+specialist|sr\.\s+qa)\b/i,             low:100000, high:125000},
+  {family:"QA Manager",        level:"—",   re:/\b(qa\s+manager|quality\s+assurance\s+manager)\b/i,      low:120000, high:150000},
+  {family:"Validation Engineer", level:"—", re:/\b(validation\s+engineer|csv|equipment\s+validation)\b/i,low:100000, high:140000},
+  {family:"GxP Quality Lead",  level:"—",   re:/\b(gxp\s+quality|quality\s+lead|quality\s+head)\b/i,     low:150000, high:200000},
+
+  // ---- Clinical / Biometrics ----
+  {family:"Clinical Research Coordinator", level:"—", re:/\b(clinical\s+research\s+coordinator|crc)\b/i, low:52000,  high:75000},
+  {family:"Clinical Trial Assistant",      level:"—", re:/\b(clinical\s+trial\s+assistant|cta)\b/i,      low:52000,  high:70000},
+  {family:"Clinical Project Manager",      level:"—", re:/\b(clinical\s+(project|study)\s+manager|cpm)\b/i, low:120000, high:165000},
+  {family:"Clinical Operations Manager",   level:"—", re:/\b(clinical\s+operations\s+manager|clops)\b/i, low:120000, high:170000},
+  {family:"CRA (Monitor)",                 level:"—", re:/\b(clinical\s+research\s+associate|cra)\b/i,   low:90000,  high:130000},
+  {family:"Clinical Data Manager",         level:"—", re:/\b(clinical\s+data\s+manager|cdm)\b/i,         low:110000, high:150000},
+  {family:"Biostatistician",               level:"I/II", re:/\b(biostatistician|biostats)\b/i,           low:130000, high:175000},
+  {family:"Senior Biostatistician",        level:"—",   re:/\b(senior\s+biostatistician|principal\s+biostat)\b/i, low:160000, high:210000},
+  {family:"Medical Writer",                level:"—",   re:/\b(medical\s+writer|regulatory\s+writer)\b/i,low:110000, high:155000},
+  {family:"Pharmacovigilance Specialist",  level:"—",   re:/\b(pharmacovigilance|drug\s+safety|pv)\b/i,  low:100000, high:145000},
+
+  // ---- Regulatory Affairs ----
+  {family:"Regulatory Affairs Associate",  level:"—", re:/\b(regulatory\s+affairs\s+associate|ra\s+associate)\b/i, low:90000,  high:120000},
+  {family:"Regulatory Affairs Manager",    level:"—", re:/\b(regulatory\s+affairs\s+manager|ra\s+manager)\b/i,     low:130000, high:170000},
+  {family:"Senior/Director Regulatory",    level:"—", re:/\b(senior|director)\s+regulatory\s+affairs\b/i,         low:170000, high:230000},
+
+  // ---- Data / Software / Computation ----
+  {family:"Bioinformatician",      level:"—", re:/\b(bioinformatic(s|ian)|ngs\s+analysis|rna-?seq|single-?cell)\b/i, low:130000, high:180000},
+  {family:"Computational Biologist",level:"—", re:/\b(computational\s+biolog(ist|y))\b/i,                   low:130000, high:185000},
+  {family:"Data Scientist (Bio)",  level:"—", re:/\b(data\s+scientist|ml\s+scientist)\b/i,                 low:130000, high:180000},
+  {family:"ML/AI Engineer",        level:"—", re:/\b(ml|machine\s+learning|ai)\s+(engineer|developer)\b/i,  low:145000, high:200000},
+  {family:"Data Engineer",         level:"—", re:/\b(data\s+engineer|etl|warehouse)\b/i,                   low:130000, high:180000},
+  {family:"Software Engineer",     level:"I–III", re:/\b(software\s+engineer|full-?stack|frontend|backend)\b/i, low:120000, high:180000},
+  {family:"DevOps/SRE",            level:"—", re:/\b(devops|sre|platform\s+engineer)\b/i,                  low:135000, high:185000},
+  {family:"LIMS Engineer/Admin",   level:"—", re:/\b(lims|labware|benchling)\b/i,                          low:115000, high:160000},
+
+  // ---- Product / Design ----
+  {family:"Product Manager",       level:"—", re:/\b(product\s+manager|pm)\b/i,                            low:130000, high:180000},
+  {family:"UX/UI Designer",        level:"—", re:/\b(ux|ui|product\s+designer)\b/i,                        low:110000, high:160000},
+  {family:"Technical Writer",      level:"—", re:/\b(technical\s+writer|documentation)\b/i,               low:90000,  high:130000},
+
+  // ---- GxP Ops / Facilities / EHS / Supply Chain ----
+  {family:"Facilities Technician", level:"—", re:/\b(facilities\s+tech|maintenance\s+tech)\b/i,           low:55000,  high:80000},
+  {family:"Facilities Manager",    level:"—", re:/\b(facilities\s+manager|site\s+manager)\b/i,            low:110000, high:150000},
+  {family:"EHS Specialist",        level:"—", re:/\b(ehs|environmental\s+health\s+and\s+safety)\b/i,      low:90000,  high:125000},
+  {family:"Supply Chain Planner",  level:"—", re:/\b(supply\s+chain\s+planner|demand\s+planner)\b/i,      low:90000,  high:125000},
+  {family:"Procurement Specialist",level:"—", re:/\b(procurement|buyer|purchasing)\b/i,                   low:80000,  high:115000},
+  {family:"Warehouse/Inventory Lead", level:"—", re:/\b(warehouse|inventory)\s+(lead|manager)\b/i,        low:65000,  high:95000},
+
+  // ---- HR / Talent / People ----
+  {family:"Recruiter / Talent Partner", level:"—", re:/\b(recruiter|talent\s+acquisition|ta\s+partner)\b/i, low:85000, high:130000},
+  {family:"HR Generalist",              level:"—", re:/\b(hr\s+generalist|people\s+operations)\b/i,         low:80000, high:115000},
+  {family:"HRBP / People Partner",      level:"—", re:/\b(hrbp|people\s+partner|hr\s+business\s+partner)\b/i, low:110000, high:155000},
+
+  // ---- Finance / Admin / Legal ----
+  {family:"FP&A Analyst",          level:"—", re:/\b(fp&a|financial\s+planning|financial\s+analyst)\b/i,  low:95000,  high:130000},
+  {family:"Accountant",            level:"—", re:/\b(accountant|staff\s+accountant|senior\s+accountant)\b/i, low:75000, high:110000},
+  {family:"Office Manager",        level:"—", re:/\b(office\s+manager|admin\s+manager)\b/i,               low:70000,  high:100000},
+  {family:"Paralegal / Contracts",  level:"—", re:/\b(paralegal|contracts\s+specialist|contract\s+manager)\b/i, low:95000, high:135000},
+
+  // ---- Commercial / Med Affairs (light heuristics) ----
+  {family:"Medical Science Liaison", level:"—", re:/\b(msl|medical\s+science\s+liaison)\b/i,              low:150000, high:200000},
+  {family:"Field Applications Scientist", level:"—", re:/\b(field\s+applications?\s+scientist|fas)\b/i,   low:120000, high:165000},
+  {family:"Sales (Life Sci AE)",    level:"—", re:/\b(account\s+executive|sales\s+executive|life\s+science\s+sales)\b/i, low:95000, baseHigh=140000, high:140000}, // base only; OTE varies
+  {family:"Marketing Manager (Life Sci)", level:"—", re:/\b(marketing\s+manager|product\s+marketing)\b/i, low:115000, high:160000}
+].map(r => {
+  // Normalize any accidental property like baseHigh in the sales row:
+  if (r.baseHigh && !r.high) r.high = r.baseHigh;
+  return r;
+});
 
 const METRO_MULTIPLIERS = [
   {metro:"Bay Area", re:/\b(san\s+francisco|oakland|san\s+jose|bay\s+area|silicon\s+valley)\b/i, mult:1.25},
