@@ -318,13 +318,9 @@ const ROLE_TABLE = [
   // ---- Commercial / Med Affairs (light heuristics) ----
   {family:"Medical Science Liaison", level:"—", re:/\b(msl|medical\s+science\s+liaison)\b/i,              low:150000, high:200000},
   {family:"Field Applications Scientist", level:"—", re:/\b(field\s+applications?\s+scientist|fas)\b/i,   low:120000, high:165000},
-  {family:"Sales (Life Sci AE)",    level:"—", re:/\b(account\s+executive|sales\s+executive|life\s+science\s+sales)\b/i, low:95000, baseHigh=140000, high:140000}, // base only; OTE varies
+  {family:"Sales (Life Sci AE)",    level:"—", re:/\b(account\s+executive|sales\s+executive|life\s+science\s+sales)\b/i, low:95000, high:140000}, // base only; OTE varies
   {family:"Marketing Manager (Life Sci)", level:"—", re:/\b(marketing\s+manager|product\s+marketing)\b/i, low:115000, high:160000}
-].map(r => {
-  // Normalize any accidental property like baseHigh in the sales row:
-  if (r.baseHigh && !r.high) r.high = r.baseHigh;
-  return r;
-});
+];
 
 const METRO_MULTIPLIERS = [
   {metro:"Bay Area", re:/\b(san\s+francisco|oakland|san\s+jose|bay\s+area|silicon\s+valley)\b/i, mult:1.25},
