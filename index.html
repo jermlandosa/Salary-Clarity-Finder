@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Salary Clarity Finder</title>
-<meta name="description" content="Paste a job posting and get a transparency score, law check by state, and concrete fixes. Local-only, no uploads." />
+<meta name="description" content="Paste a job posting and get a transparency score, law check by state, and a market pay estimate. Local-only, no uploads." />
 <style>
   :root{
     --bg:#0b1020; --panel:#0f1530; --ink:#e8edff; --muted:#9db0ff; --line:#202848;
@@ -19,9 +19,9 @@
   .grid{display:grid;gap:18px;grid-template-columns:1fr 1fr}
   @media (max-width:980px){.grid{grid-template-columns:1fr}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
-  textarea,input,button{font-weight:600}
+  textarea,input,button,select{font-weight:600}
   textarea{width:100%;min-height:280px;background:var(--alt);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
-  input[type=url]{width:100%;background:#10183a;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;color:var(--ink)}
+  input[type=url], select{width:100%;background:#10183a;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;color:var(--ink)}
   .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .btn{appearance:none;border:1px solid var(--line);background:#10183a;color:var(--ink);padding:10px 14px;border-radius:var(--radius-sm);cursor:pointer}
   .btn.primary{background:var(--brand);border-color:transparent;color:#0a0f22}
@@ -47,9 +47,9 @@
 <header>
   <div>
     <h1>Salary Clarity Finder</h1>
-    <div class="sub">Transparency score • Law check by state • Concrete fixes (local‑only)</div>
+    <div class="sub">Transparency score • Law check by state • Market pay estimate (beta) • Local-only</div>
   </div>
-  <div class="sub">by Jeremy • v1.0</div>
+  <div class="sub">by Jeremy • v1.1</div>
 </header>
 
 <main class="grid">
@@ -58,7 +58,7 @@
     <textarea id="jd" placeholder="Paste the full job ad here (or paste a URL below and copy the posting text here to avoid CORS)"></textarea>
     <div class="controls two">
       <div>
-        <input id="url" type="url" placeholder="Optional: job posting URL (used only to guess location/domain)"/>
+        <input id="url" type="url" placeholder="Optional: job posting URL (used to hint location/domain)"/>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" id="sample">Load sample</button>
@@ -108,6 +108,37 @@
       </div>
     </div>
 
+    <!-- NEW: Market Pay Estimator -->
+    <div class="card" style="margin-top:10px;background:var(--alt)">
+      <h2>Market Pay Estimate (beta)</h2>
+      <div class="small muted">Heuristic suggestion based on title/level + metro cost multipliers. Use judgment; adjust for equity/bonus.</div>
+      <div class="two" style="margin-top:10px">
+        <div>
+          <div class="row"><span>Detected role</span><span id="m_role" class="pill">—</span></div>
+          <div class="row"><span>Detected level</span><span id="m_level" class="pill">—</span></div>
+          <div class="row"><span>Detected metro</span><span id="m_metro" class="pill">—</span></div>
+        </div>
+        <div>
+          <label class="small muted">Adjust metro multiplier</label>
+          <select id="m_multiplier">
+            <option value="1.25">Bay Area (1.25)</option>
+            <option value="1.20">NYC (1.20)</option>
+            <option value="1.15">San Diego (1.15)</option>
+            <option value="1.12">Seattle (1.12)</option>
+            <option value="1.10" selected>Boston/Cambridge (1.10)</option>
+            <option value="1.05">Austin/Denver (1.05)</option>
+            <option value="1.00">US Remote / Other (1.00)</option>
+            <option value="0.90">Low-cost metros (0.90)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px"><strong>Suggested base range</strong><span id="m_range" style="font-weight:800">—</span></div>
+      <div class="row"><span>Confidence</span><span id="m_conf" class="pill">—</span></div>
+      <div class="controls">
+        <button class="btn" id="insertEstimate">Insert estimate into summary</button>
+      </div>
+    </div>
+
     <div class="card" style="margin-top:10px;background:var(--alt)">
       <h2>Copyable summary</h2>
       <div class="small muted">Paste this as a comment or send to a recruiter.</div>
@@ -123,8 +154,7 @@ const STATES = {
   "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DC":"District of Columbia","DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming"
 };
 
-// Jurisdictions with known salary-range posting requirements for job ads (not exhaustive).
-// Effective dates and thresholds included where relevant.
+// Jurisdictions with known salary-range posting requirements (concise; not exhaustive).
 const LAW_RULES = [
   {code:"CA", name:"California", effective:"2023-01-01", threshold:1},
   {code:"CO", name:"Colorado", effective:"2021-01-01", threshold:1},
@@ -133,45 +163,39 @@ const LAW_RULES = [
   {code:"HI", name:"Hawaii", effective:"2024-01-01", threshold:50},
   {code:"IL", name:"Illinois", effective:"2025-01-01", threshold:15},
   {code:"MA", name:"Massachusetts", effective:"2025-10-29", threshold:25},
-  // Add others as you confirm
 ];
 
 function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
 function isEffective(date){ return todayISO() >= date; }
 function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
-function pct(n,d){ return d? Math.round(100*n/d):0; }
 function bar(id,val){ const el=document.getElementById(id); el.style.width = clamp(val,0,100)+"%"; el.style.background = val>=80?"var(--good)":val>=60?"var(--warn)":"var(--bad)"; }
 
+// ------- Detection -------
 function detectStates(text, url){
   const hits = new Set();
   const t = (text||"").toLowerCase();
-  // Look for state names or postal codes
   Object.entries(STATES).forEach(([abbr,name])=>{
     const reName = new RegExp("\\b"+name.toLowerCase().replace(/\./g,'\\.')+"\\b","i");
     const reAbbr = new RegExp("\\b"+abbr+"\\b","i");
     if (reName.test(t) || reAbbr.test(t)) hits.add(abbr);
   });
-  // From URL domain hints (e.g., /careers?location=Seattle, WA)
   if(url){
     const u=url.toLowerCase();
     Object.entries(STATES).forEach(([abbr,name])=>{
-      if (u.includes(name.toLowerCase()) || u.match(new RegExp("[ ,]"+abbr.toLowerCase()+"[ ,]"))) hits.add(abbr);
+      if (u.includes(name.toLowerCase()) || u.match(new RegExp("[ ,/]+"+abbr.toLowerCase()+"([ ,/]|$)"))) hits.add(abbr);
     });
   }
   return Array.from(hits);
 }
 
 function parseSalary(text){
-  // Find ranges like $95,000–$115,000 or 95k-115k or $40/hr
-  const dollars = /\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?/g; // $95,000
   const range = /(\$?\s?\d{2,3}(?:,\d{3})?\s?(?:k|K)?)[\s\-–—to]{1,3}(\$?\s?\d{2,3}(?:,\d{3})?\s?(?:k|K)?)/;
-  const hourly = /\$\s?\d{1,3}(?:\.\d{2})?\s*\/(?:hour|hr)/i;
-  const perYear = /per\s+(year|annum|yr)/i;
-  const found = text.match(dollars)||[];
   const hasRange = range.test(text);
-  const hasHourly = hourly.test(text);
-  const hasPerYear = perYear.test(text);
-  return {hasAny: found.length>0 || hasRange, hasRange, hasHourly, hasPerYear, examples: (text.match(/\$[^\s.,;)]{1,12}/g)||[]).slice(0,4)};
+  const dollars = /\$\s?\d{2,3}(?:,\d{3})?(?:\.\d{2})?/g;
+  const found = text.match(dollars)||[];
+  const hourly = /\$\s?\d{1,3}(?:\.\d{2})?\s*\/(?:hour|hr)/i.test(text);
+  const perYear = /per\s+(year|annum|yr)/i.test(text);
+  return {hasAny: found.length>0 || hasRange, hasRange, hasHourly:hourly, hasPerYear:perYear, examples: (text.match(/\$[^\s.,;)]{1,12}/g)||[]).slice(0,4)};
 }
 
 function detectBenefits(text){
@@ -180,34 +204,81 @@ function detectBenefits(text){
   return keys.filter(k=>lower.includes(k)).length;
 }
 
-function detectEEO(text){
-  return /(equal opportunity|eeo|we welcome applicants|accommodations)/i.test(text);
-}
-
-function detectApply(text){
-  return /(apply|application|to be considered|submit|greenhouse|workday|lever|ashby|careers@|jobs@|apply now)/i.test(text);
-}
+function detectEEO(text){ return /(equal opportunity|eeo|we welcome applicants|accommodations)/i.test(text); }
+function detectApply(text){ return /(apply|application|to be considered|submit|greenhouse|workday|lever|ashby|careers@|jobs@|apply now)/i.test(text); }
 
 function lawStatus(states){
   if(!states.length) return {label:"Unknown (no state detected)", score:50, detail:"Add a clear location (state or remote with HQ)."};
-  // For multiple states, return the strictest (any that requires posting now)
   let requiresNow=false, requiresSoon=false, soonDate=null, hit=null;
   for(const abbr of states){
     const rule = LAW_RULES.find(r=>r.code===abbr);
     if(!rule) continue;
-    hit = rule; // keep last seen
+    hit = rule;
     if(isEffective(rule.effective)) { requiresNow = true; break; }
     else { requiresSoon = true; soonDate = rule.effective; }
   }
-  if(requiresNow){
-    return {label:`Posting must include salary range in ${hit.name}`, score:100, detail:`Active as of ${hit.effective}.`};
-  }
-  if(requiresSoon){
-    return {label:`Law pending in ${hit.name}`, score:65, detail:`Takes effect ${hit.effective}. Add ranges now to be compliant.`};
-  }
-  return {label:"Posting requirement not confirmed for detected state(s)", score:70, detail:"Good practice: include a good‑faith range + benefits."};
+  if(requiresNow){ return {label:`Posting must include salary range in ${hit.name}`, score:100, detail:`Active as of ${hit.effective}.`}; }
+  if(requiresSoon){ return {label:`Law pending in ${hit.name}`, score:65, detail:`Takes effect ${hit.effective}. Add ranges now to be compliant.`}; }
+  return {label:"Posting requirement not confirmed for detected state(s)", score:70, detail:"Good practice: include a good-faith range + benefits."};
 }
 
+// ------- NEW: Market pay estimator -------
+const ROLE_TABLE = [
+  // family, level, detect regex, baseline national range (USD base)
+  {family:"Research Assistant", level:"I", re:/\b(research\s+assistant)\b/i, low:50000, high:70000},
+  {family:"Research Associate", level:"I", re:/\b(research\s+associate\s*(?:i|1))\b/i, low:65000, high:85000},
+  {family:"Research Associate", level:"II", re:/\b(research\s+associate\s*(?:ii|2))\b/i, low:85000, high:105000},
+  {family:"Research Associate", level:"III|Sr", re:/\b(senior\s+research\s+associate|research\s+associate\s*(?:iii|3))\b/i, low:100000, high:125000},
+  {family:"Scientist", level:"I", re:/\b(scientist\s*(?:i|1))\b/i, low:110000, high:140000},
+  {family:"Scientist", level:"II", re:/\b(scientist\s*(?:ii|2))\b/i, low:130000, high:165000},
+  {family:"Senior Scientist", level:"—", re:/\b(senior\s+scientist)\b/i, low:150000, high:190000},
+  {family:"Lab Manager", level:"—", re:/\b(lab\s+manager|laboratory\s+manager)\b/i, low:90000, high:120000},
+  {family:"QC Analyst", level:"—", re:/\b(qc|quality\s+control).*(analyst|associate)|quality\s+analyst/i, low:60000, high:85000},
+  {family:"Data Scientist (Bio)", level:"—", re:/\b(data\s+scientist|ml\s+scientist|computational\s+biologist)\b/i, low:130000, high:180000},
+];
+
+const METRO_MULTIPLIERS = [
+  {metro:"Bay Area", re:/\b(san\s+francisco|oakland|san\s+jose|bay\s+area|silicon\s+valley)\b/i, mult:1.25},
+  {metro:"NYC", re:/\b(new\s+york|manhattan|brooklyn|nyc|queens)\b/i, mult:1.20},
+  {metro:"San Diego", re:/\b(san\s+diego|la\s+jolla)\b/i, mult:1.15},
+  {metro:"Seattle", re:/\b(seattle|bellevue|kirkland)\b/i, mult:1.12},
+  {metro:"Boston/Cambridge", re:/\b(boston|cambridge|kendall|watertown|waltham|longwood|seaport)\b/i, mult:1.10},
+  {metro:"Austin/Denver", re:/\b(austin|denver|boulder)\b/i, mult:1.05},
+  {metro:"US Remote / Other", re:/\b(remote|anywhere\s+in\s+the\s+us|united\s+states)\b/i, mult:1.00},
+];
+
+function detectRole(text){
+  for(const r of ROLE_TABLE){ if(r.re.test(text)) return r; }
+  if(/\bassociate\b/i.test(text)) return {family:"Research Associate", level:"(unspecified)", low:80000, high:105000};
+  if(/\bscientist\b/i.test(text)) return {family:"Scientist", level:"(unspecified)", low:120000, high:160000};
+  if(/\bmanager\b/i.test(text) && /\blab|laboratory\b/i.test(text)) return {family:"Lab Manager", level:"—", low:90000, high:120000};
+  return null;
+}
+
+function detectMetro(text,url){
+  const hay = (text+" "+(url||"")).toLowerCase();
+  for(const m of METRO_MULTIPLIERS){ if(m.re.test(hay)) return m; }
+  return {metro:"US Remote / Other", mult:1.00};
+}
+
+function fmtUSD(n){ return "$"+Math.round(n).toLocaleString(); }
+
+function estimatePay(text,url){
+  const role = detectRole(text) || {family:"(role unclear)", level:"—", low:90000, high:120000};
+  const metro = detectMetro(text,url);
+  const multSel = parseFloat(document.getElementById('m_multiplier').value || metro.mult);
+  const low = role.low * multSel;
+  const high = role.high * multSel;
+
+  let conf = "Low";
+  const roleHit = role.family !== "(role unclear)";
+  const metroHit = !!metro.metro;
+  if(roleHit && metroHit) conf="High"; else if(roleHit || metroHit) conf="Medium";
+
+  return {role, metro, multUsed:multSel, low, high, confidence:conf};
+}
+
+// ------- Analysis -------
 function analyze(){
   const text = document.getElementById('jd').value || '';
   const url = document.getElementById('url').value || '';
@@ -220,7 +291,6 @@ function analyze(){
   const states = detectStates(text, url);
   const law = lawStatus(states);
 
-  // Subscores (0–100 each)
   const sSalary = salary.hasAny ? (salary.hasRange?100:70) : 0;
   const sLoc = states.length ? 100 : 50;
   const sBen = benefits ? clamp(50 + 10*benefits, 0, 100) : 30;
@@ -235,7 +305,6 @@ function analyze(){
 
   const verdict = total>=85?"Excellent (transparent)": total>=70?"Good (polish suggested)": total>=55?"Needs revision":"High friction (missing salary)";
 
-  // Render meters
   function setPair(textId,barId,val,label){ document.getElementById(textId).textContent = label||val+"/100"; bar(barId,val); }
   setPair('s_salary','b_salary',sSalary);
   setPair('s_loc','b_loc',sLoc);
@@ -247,33 +316,39 @@ function analyze(){
   document.getElementById('total').textContent = total;
   document.getElementById('verdict').textContent = verdict;
 
-  // Detected facts
   const det = document.getElementById('detected');
   det.innerHTML = '';
   const addDet = (label,val)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML = `<strong>${label}</strong><div class="small muted">${val}</div>`; det.appendChild(d); };
   addDet('States detected', states.length? states.map(s=>STATES[s]).join(', ') : '—');
   addDet('Salary tokens', salary.examples.length? salary.examples.join(' • ') : '—');
-  addDet('Hourly/per‑year cues', (salary.hasHourly? 'hourly ':'') + (salary.hasPerYear? 'per‑year':''));
+  addDet('Hourly/per-year cues', (salary.hasHourly? 'hourly ':'') + (salary.hasPerYear? 'per-year':''));
   addDet('Benefits signals', benefits? benefits+' matches' : 'none');
   addDet('EEO present?', eeo? 'yes' : 'no');
   addDet('Apply path present?', apply? 'yes' : 'no');
 
-  // Flags & fixes
   const flags = document.getElementById('flags'); flags.innerHTML='';
   const push = (level,text,fix)=>{ const e=document.createElement('div'); e.className = 'item '+level; e.innerHTML = `<strong>${text}</strong><div class="small muted">${fix}</div>`; flags.appendChild(e); };
-  if(!salary.hasAny) push('bad','No salary/range detected.','Add a good‑faith base range (min–max) + bonus/equity if applicable.');
+  if(!salary.hasAny) push('bad','No salary/range detected.','Add a good-faith base range (min–max) + bonus/equity if applicable.');
   else if(!salary.hasRange) push('warn','Dollar amount found but no min–max range.','Post a range (e.g., $95,000–$115,000) rather than a single number.');
   if(!states.length) push('warn','No clear location.','Add state or remote + time zone / office location. Laws vary by state.');
-  if(benefits<2) push('warn','Benefits not clearly described.','Add a one‑liner: medical, dental, vision, 401(k), PTO, bonus/equity.');
-  if(!eeo) push('warn','Missing EEO/accommodations line.','Add a brief equal‑opportunity statement and accommodations contact.');
+  if(benefits<2) push('warn','Benefits not clearly described.','Add a one-liner: medical, dental, vision, 401(k), PTO, bonus/equity.');
+  if(!eeo) push('warn','Missing EEO/accommodations line.','Add a brief equal-opportunity statement and accommodations contact.');
   if(!apply) push('warn','No application instructions.','Add an “Apply” link or steps (Greenhouse/Lever/Workday) + typical timeline.');
-  if(law && !isEffective(law.effective) && law.label.startsWith('Law pending')) push('good','Law not yet effective here.','Post the range now to get ahead of compliance.');
+  if(law && law.label.startsWith('Law pending')) push('good','Law not yet effective here.','Post the range now to get ahead of compliance.');
+
+  const est = estimatePay(text,url);
+  document.getElementById('m_role').textContent = est.role.family;
+  document.getElementById('m_level').textContent = est.role.level;
+  document.getElementById('m_metro').textContent = (METRO_MULTIPLIERS.find(m=>m.mult===est.multUsed)?.metro) || est.metro.metro || '—';
+  document.getElementById('m_range').textContent = `${fmtUSD(est.low)}–${fmtUSD(est.high)} base`;
+  document.getElementById('m_conf').textContent = est.confidence;
 
   const summary = [
     `Transparency Score: ${total}/100 — ${verdict}`,
     `• Salary shown: ${sSalary}/100 | Location clarity: ${sLoc}/100 | Benefits: ${sBen}/100 | EEO: ${sEEO}/100 | Apply path: ${sApply}/100 | Range quality: ${sQuality}/100`,
     `• Detected states: ${states.length? states.map(s=>STATES[s]).join(', ') : '—'} | Law: ${law.label}${law.detail? ' — '+law.detail:''}`,
-    `${!salary.hasAny? 'Top fix: add a pay range. ': ''}Use this tool: your data stays in your browser.`
+    `• Market pay (beta): ${est.role.family} ${est.role.level} in ${document.getElementById('m_metro').textContent}: ${fmtUSD(est.low)}–${fmtUSD(est.high)} base (${est.confidence} confidence)`,
+    `${!salary.hasAny? 'Top fix: add a pay range. ': ''}Local-only; no data leaves your browser.`
   ].join('\n');
   document.getElementById('summary').value = summary;
 
@@ -283,14 +358,43 @@ function analyze(){
 // ------- Wiring -------
 document.getElementById('analyze').addEventListener('click', analyze);
 document.getElementById('copy').addEventListener('click', ()=> navigator.clipboard.writeText(document.getElementById('summary').value.trim()));
-document.getElementById('clear').addEventListener('click', ()=>{ document.getElementById('jd').value=''; document.getElementById('url').value=''; document.getElementById('summary').value=''; document.querySelectorAll('.bar>span').forEach(s=>s.style.width='0%'); ['total','s_salary','s_loc','s_ben','s_eeo','s_apply','s_quality','s_law'].forEach(id=>document.getElementById(id).textContent='–'); document.getElementById('verdict').textContent='Awaiting input'; document.getElementById('detected').innerHTML=''; document.getElementById('flags').innerHTML=''; localStorage.removeItem('scf_last'); });
+document.getElementById('clear').addEventListener('click', ()=>{
+  document.getElementById('jd').value=''; document.getElementById('url').value='';
+  document.getElementById('summary').value='';
+  document.querySelectorAll('.bar>span').forEach(s=>s.style.width='0%');
+  ['total','s_salary','s_loc','s_ben','s_eeo','s_apply','s_quality','s_law'].forEach(id=>document.getElementById(id).textContent='–');
+  document.getElementById('verdict').textContent='Awaiting input';
+  document.getElementById('detected').innerHTML=''; document.getElementById('flags').innerHTML='';
+  ['m_role','m_level','m_metro','m_range','m_conf'].forEach(id=>document.getElementById(id).textContent='—');
+  localStorage.removeItem('scf_last');
+});
+
+document.getElementById('m_multiplier').addEventListener('change', ()=>{
+  const text = document.getElementById('jd').value || '';
+  const url = document.getElementById('url').value || '';
+  if(!text.trim()) return;
+  const est = estimatePay(text,url);
+  document.getElementById('m_range').textContent = `${fmtUSD(est.low)}–${fmtUSD(est.high)} base`;
+  document.getElementById('m_conf').textContent = est.confidence;
+});
+
+document.getElementById('insertEstimate').addEventListener('click', ()=>{
+  const line = document.getElementById('m_range').textContent;
+  const role = document.getElementById('m_role').textContent;
+  const level = document.getElementById('m_level').textContent;
+  const metro = document.getElementById('m_metro').textContent;
+  const conf = document.getElementById('m_conf').textContent;
+  const add = `Suggested base for ${role} ${level} (${metro}): ${line} (${conf} confidence)`;
+  const box = document.getElementById('summary');
+  box.value = (box.value.trim() ? box.value.trim()+"\n" : "") + add;
+});
+
 document.getElementById('sample').addEventListener('click', ()=>{
-  const sample = `Research Associate II — Cell Biology\n\nLocation: Boston, MA (hybrid, 3 days on‑site)\n\nAbout the role\nYou will run cell‑based assays, maintain mammalian cell lines, and contribute to pipeline experiments.\n\nCompensation\nBase salary range: $95,000–$115,000 plus 10% bonus; equity eligible. \nBenefits include medical, dental, vision, 401(k), and generous PTO.\n\nHow to apply\nApply via our Lever page. Typical process: intro → panel → offer in ~2 weeks.\n\nEEO\nWe are an equal opportunity employer and provide reasonable accommodations for candidates with disabilities.`;
+  const sample = `Research Associate II — Cell Biology\n\nLocation: Boston, MA (hybrid, 3 days on-site)\n\nAbout the role\nYou will run cell-based assays, maintain mammalian cell lines, and contribute to pipeline experiments.\n\nCompensation\nBase salary range: $95,000–$115,000 plus 10% bonus; equity eligible. \nBenefits include medical, dental, vision, 401(k), and generous PTO.\n\nHow to apply\nApply via our Lever page. Typical process: intro → panel → offer in ~2 weeks.\n\nEEO\nWe are an equal opportunity employer and provide reasonable accommodations for candidates with disabilities.`;
   document.getElementById('jd').value = sample;
   document.getElementById('url').value = 'https://jobs.example.com/boston-ma/research-associate-ii';
 });
 
-// Restore last
 try{ const last = JSON.parse(localStorage.getItem('scf_last')||'null'); if(last){ document.getElementById('jd').value=last.text||''; document.getElementById('url').value=last.url||''; } }catch(e){}
 </script>
 </body>
